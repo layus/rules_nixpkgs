@@ -15,7 +15,17 @@ load(":private/location_expansion.bzl", "expand_location")
 def _nixpkgs_git_repository_impl(repository_ctx):
     repository_ctx.file(
         "BUILD",
-        content = 'filegroup(name = "srcs", srcs = glob(["**"]), visibility = ["//visibility:public"])',
+        content = """
+load("@io_tweag_rules_nixpkgs//:defs.bzl", "nix_package_repository")
+
+filegroup(name = "srcs", srcs = glob(["**"]), visibility = ["//visibility:public"])
+
+nix_package_repository(
+    name = "nixpkgs",
+    derivation = "default.nix",
+    visibility = ["//visibility:public"],
+)
+""",
     )
 
     # Make "@nixpkgs" (syntactic sugar for "@nixpkgs//:nixpkgs") a valid
@@ -1254,10 +1264,12 @@ def _cp(repository_ctx, src, dest = None):
     # lead to other errors if the next process is checking the executable bit.
     # One other side effect of this change is that you will have a difference
     # in the nix hash computed when nix is run by rules_nixpkgs or directly.
-    repository_ctx.file(repository_ctx.path(dest),
-                        repository_ctx.read(repository_ctx.path(src)),
-                        executable=False,
-                        legacy_utf8=False)
+    repository_ctx.file(
+        repository_ctx.path(dest),
+        repository_ctx.read(repository_ctx.path(src)),
+        executable = False,
+        legacy_utf8 = False,
+    )
 
     return dest
 
