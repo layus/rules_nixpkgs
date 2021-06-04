@@ -69,6 +69,15 @@ def _nix_debug_build(ctx, out_symlink):
         ),
     )
 
+    ctx.actions.run_shell(
+        inputs = [out_symlink],
+        outputs = [ctx.outputs.lib_list],
+        command = "find {}/result/lib > {}".format(
+            out_symlink.path,
+            ctx.outputs.lib_list.path,
+        ),
+    )
+
 def nix_build(
         ctx,
         derivation,

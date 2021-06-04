@@ -107,7 +107,7 @@ def _make_cc_info(ctx, out_include_dir, out_shared_libs):
                 libraries = depset(libraries_to_link),
             )]),
         )
-    cc_info = CcInfo(
+    return CcInfo(
         compilation_context = compilation_context,
         linking_context = linking_context,
     )
@@ -146,6 +146,7 @@ nix_cc = rule(
         "log": "%{name}.log",
         "path_info": "%{name}.path_info",
         "derivation": "%{name}.derivation",
+        "lib_list": "%{name}.lib_list",
     },
     fragments = ["cpp"],  # for configure_features
     toolchains = [
