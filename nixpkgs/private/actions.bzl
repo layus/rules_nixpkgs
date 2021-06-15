@@ -87,7 +87,7 @@ def nix_build(
         out_symlink,
         out_include_dir,
         out_include_dir_name,
-        out_lib_dir,
+        out_lib_dir_name,
         out_shared_libs):
     """ runs nix-build on a set of sources """
     toolchain = ctx.toolchains["@io_tweag_rules_nixpkgs//:toolchain_type"]
@@ -98,7 +98,7 @@ def nix_build(
         ctx.actions.run_shell(
             inputs = [out_symlink],
             outputs = [out_include_dir],
-            command = "cp -R {}/result/{}/* {}".format(
+            command = "cp -R {}/{}/* {}".format(
                 out_symlink.path,
                 out_include_dir_name,
                 out_include_dir.path,
@@ -110,24 +110,14 @@ def nix_build(
             inputs = [out_symlink],
             outputs = out_shared_libs.values(),
             command = "\n".join([
-                "cp -R {}/result/{} {}".format(
+                "cp -R {}/{}/{} {}".format(
                     out_symlink.path,
+                    out_lib_dir_name,
                     lib_name,
                     out_shared_libs[lib_name].path,
                 )
                 for lib_name in out_shared_libs
             ]),
-        )
-
-    if out_lib_dir:
-        ctx.actions.run_shell(
-            inputs = [out_symlink],
-            outputs = [out_lib_dir] + out_shared_libs,
-            command = "cp -R {}/result/{}/* {}".format(
-                out_symlink.path,
-                "lib",
-                out_lib_dir.path,
-            ),
         )
 
     input_nix_out_symlinks = []
@@ -140,6 +130,13 @@ def nix_build(
         nix_file_deps.append(info.nix_import)
         nix_file_deps += info.extra_nix_files
         input_nix_out_symlinks.append(info.out_symlink)
+
+    maybe_build_attr = []
+    if ctx.attr.build_attribute:
+        maybe_build_attr = [
+            "-A",
+            ctx.attr.build_attribute,
+        ]
 
     ctx.actions.run(
         outputs = [out_symlink],
@@ -155,8 +152,10 @@ def nix_build(
             ".",
             "-I",
             "nixpkgs={}".format(repo[NixPkgsInfo].nix_import.path),
-        ] + nixpath_entries + [
+        ] + nixpath_entries + maybe_build_attr + [
             derivation.path,
+            "--keep-failed",  # TODO(danny): when should we enable this?
+            "--show-trace",
             "--out-link",
             "{}/result".format(out_symlink.path),
         ],

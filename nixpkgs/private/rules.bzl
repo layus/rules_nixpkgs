@@ -21,15 +21,13 @@ def _nix_cc_impl(ctx):
     if ctx.attr.out_include_dir:
         out_include_dir = ctx.actions.declare_directory("include")
 
-    out_lib_dir = None
     out_shared_libs = {}
     if ctx.attr.installs_libs:
         # TODO: create a debug mode that lists the contents of the lib directory
         # out_lib_dir = ctx.actions.declare_directory("lib")
 
-        for out_shared_lib in ctx.attr.out_shared_libs:
-            lib_name = "lib/" + out_shared_lib
-            out_shared_libs[lib_name] = ctx.actions.declare_file(lib_name)
+        for lib_name in ctx.attr.out_shared_libs:
+            out_shared_libs[lib_name] = ctx.actions.declare_file("lib/" + lib_name)
 
     toolchain.build(
         ctx,
@@ -41,16 +39,15 @@ def _nix_cc_impl(ctx):
         out_symlink = out_symlink,
         out_include_dir = out_include_dir,
         out_include_dir_name = ctx.attr.out_include_dir,
-        out_lib_dir = out_lib_dir,
+        out_lib_dir_name = ctx.attr.out_lib_dir,
         out_shared_libs = out_shared_libs,  # dict
     )
 
-    maybe_nix_lib = [out_lib_dir] if out_lib_dir else []
     maybe_nix_include = [out_include_dir] if out_include_dir else []
 
     return [
         DefaultInfo(
-            files = depset(direct = maybe_nix_include + maybe_nix_lib),
+            files = depset(direct = maybe_nix_include),
             runfiles = ctx.runfiles(files = []),
         ),
         NixLibraryInfo(
@@ -130,14 +127,22 @@ nix_cc = rule(
             providers = [NixPkgsInfo],
             default = "@nixpkgs",
         ),
+        "build_attribute": attr.string(
+            doc = "Nix attribute to build (passes -A <build_attribute> to command line)",
+        ),
         "out_include_dir": attr.string(
-            doc = "Name of the output subdirectory for header files",
-            default = "include",
+            doc = "Name of the output subdirectory for header files (usually under result/include)",
+            default = "result/include",
             mandatory = False,
         ),
         "installs_libs": attr.bool(default = False),
         "out_shared_libs": attr.string_list(
             doc = "List of shared libraries created by rule",
+        ),
+        "out_lib_dir": attr.string(
+            doc = "Name of the output subdirectory for library files",
+            default = "result/lib",
+            mandatory = False,
         ),
         # for find_cpp_toolchain
         "_cc_toolchain": attr.label(default = Label("@bazel_tools//tools/cpp:current_cc_toolchain")),
