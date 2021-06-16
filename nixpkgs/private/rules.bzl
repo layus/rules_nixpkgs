@@ -152,6 +152,7 @@ nix_cc = rule(
         "path_info": "%{name}.path_info",
         "derivation": "%{name}.derivation",
         "lib_list": "%{name}.lib_list",
+        "tar": "%{name}.tar",
     },
     fragments = ["cpp"],  # for configure_features
     toolchains = [

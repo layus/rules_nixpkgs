@@ -78,6 +78,24 @@ def _nix_debug_build(ctx, out_symlink):
         ),
     )
 
+def _nix_docker_helper(ctx, out_symlink):
+    toolchain = ctx.toolchains["@io_tweag_rules_nixpkgs//:toolchain_type"]
+
+    # Create a tarball with runtime dependencies of built package.
+    ctx.actions.run_shell(
+        inputs = [out_symlink],
+        outputs = [ctx.outputs.tar],
+        command = " ".join([
+            toolchain.nixinfo.nix_store_bin_path,
+            "-q -R --include-outputs",
+            "{}/result".format(out_symlink.path),
+            "|",
+            "xargs tar c",
+            ">",
+            ctx.outputs.tar.path,
+        ]),
+    )
+
 def nix_build(
         ctx,
         derivation,
@@ -93,6 +111,7 @@ def nix_build(
     toolchain = ctx.toolchains["@io_tweag_rules_nixpkgs//:toolchain_type"]
 
     _nix_debug_build(ctx, out_symlink)  # add optional debug outputs
+    _nix_docker_helper(ctx, out_symlink)
 
     if out_include_dir:
         ctx.actions.run_shell(
