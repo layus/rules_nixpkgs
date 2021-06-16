@@ -106,7 +106,8 @@ def nix_build(
         out_include_dir,
         out_include_dir_name,
         out_lib_dir_name,
-        out_shared_libs):
+        out_shared_libs,
+        out_static_libs):
     """ runs nix-build on a set of sources """
     toolchain = ctx.toolchains["@io_tweag_rules_nixpkgs//:toolchain_type"]
 
@@ -136,6 +137,21 @@ def nix_build(
                     out_shared_libs[lib_name].path,
                 )
                 for lib_name in out_shared_libs
+            ]),
+        )
+
+    if out_static_libs:
+        ctx.actions.run_shell(
+            inputs = [out_symlink],
+            outputs = out_static_libs.values(),
+            command = "\n".join([
+                "cp -R {}/{}/{} {}".format(
+                    out_symlink.path,
+                    out_lib_dir_name,
+                    lib_name,
+                    out_static_libs[lib_name].path,
+                )
+                for lib_name in out_static_libs
             ]),
         )
 
