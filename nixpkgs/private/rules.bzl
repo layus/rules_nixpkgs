@@ -4,7 +4,7 @@ load("@rules_cc//cc:find_cc_toolchain.bzl", "find_cc_toolchain")
 def _nix_cc_impl(ctx):
     toolchain = ctx.toolchains["@io_tweag_rules_nixpkgs//:toolchain_type"]
 
-    wrapper_file = ctx.actions.declare_file("wrapper.nix")
+    wrapper_file = ctx.actions.declare_file("{}-wrapper.nix".format(ctx.label.name))
     toolchain.wrap(
         ctx,
         derivation = ctx.file.derivation,  # .nix file
@@ -15,21 +15,20 @@ def _nix_cc_impl(ctx):
 
     # need symlink for nix to not garbage collect results
     # we also symlink to this symlink if we have include or lib outputs
-    out_symlink = ctx.actions.declare_directory("bazel-support")
+    out_symlink = ctx.actions.declare_directory("{}-bazel-support".format(ctx.label.name))
 
     out_include_dir = None
     if ctx.attr.out_include_dir:
-        out_include_dir = ctx.actions.declare_directory("include")
+        out_include_dir = ctx.actions.declare_directory("{}-include".format(ctx.label.name))
 
     out_shared_libs = {}
     out_static_libs = {}
     if ctx.attr.installs_libs:  # TODO(danny): remove this and rely on presence of other lists?
         for lib_name in ctx.attr.out_shared_libs:
-            out_shared_libs[lib_name] = ctx.actions.declare_file("lib/" + lib_name)
+            out_shared_libs[lib_name] = ctx.actions.declare_file("{}-lib/".format(ctx.label.name) + lib_name)
         for lib_name in ctx.attr.out_static_libs:
-            out_static_libs[lib_name] = ctx.actions.declare_file("lib/" + lib_name)
+            out_static_libs[lib_name] = ctx.actions.declare_file("{}-lib/".format(ctx.label.name) + lib_name)
 
-    print(out_static_libs)
     toolchain.build(
         ctx,
         derivation = wrapper_file,  # .nix file

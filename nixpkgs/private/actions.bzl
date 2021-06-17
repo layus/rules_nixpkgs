@@ -14,9 +14,8 @@ def nix_wrapper(ctx, derivation, deps, nixpkgs, out):
     """
     generates a script that provides exactly the dependencies of this build.
     """
-    wrapper_file = ctx.actions.declare_file("wrapper.nix")
     ctx.actions.write(
-        output = wrapper_file,
+        output = out,
         content = NIX_WRAPPER_TEMPLATE.format(
             nixpkg_deps = "\n    ".join([
                 "{name} = nixpkgs.{name};".format(name = name)
