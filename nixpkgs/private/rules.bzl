@@ -1,6 +1,9 @@
 load(":private/providers.bzl", "NixBuildInfo", "NixLibraryInfo", "NixPkgsInfo")
 load("@rules_cc//cc:find_cc_toolchain.bzl", "find_cc_toolchain")
 
+def _declare_lib(ctx, lib_name):
+    return ctx.actions.declare_file("{}-lib/{}".format(ctx.label.name, lib_name))
+
 def _nix_cc_impl(ctx):
     toolchain = ctx.toolchains["@io_tweag_rules_nixpkgs//:toolchain_type"]
 
@@ -23,11 +26,10 @@ def _nix_cc_impl(ctx):
 
     out_shared_libs = {}
     out_static_libs = {}
-    if ctx.attr.installs_libs:  # TODO(danny): remove this and rely on presence of other lists?
-        for lib_name in ctx.attr.out_shared_libs:
-            out_shared_libs[lib_name] = ctx.actions.declare_file("{}-lib/".format(ctx.label.name) + lib_name)
-        for lib_name in ctx.attr.out_static_libs:
-            out_static_libs[lib_name] = ctx.actions.declare_file("{}-lib/".format(ctx.label.name) + lib_name)
+    for lib_name in ctx.attr.out_shared_libs:
+        out_shared_libs[lib_name] = _declare_lib(ctx, lib_name)
+    for lib_name in ctx.attr.out_static_libs:
+        out_static_libs[lib_name] = _declare_lib(ctx, lib_name)
 
     toolchain.build(
         ctx,
@@ -148,7 +150,6 @@ nix_cc = rule(
             default = "result/include",
             mandatory = False,
         ),
-        "installs_libs": attr.bool(default = False),
         "out_shared_libs": attr.string_list(
             doc = "List of shared libraries created by rule",
         ),
