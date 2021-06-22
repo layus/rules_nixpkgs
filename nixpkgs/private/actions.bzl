@@ -194,6 +194,9 @@ def nix_build(
             "{}/result".format(out_symlink.path),
         ],
         mnemonic = "NixBuild",
+        execution_requirements = {
+            "no-cache": "1",
+        },
         # .bazelrc needs:
         # build --sandbox_writable_path=/nix
         # build --sandbox_writable_path=/dev/pts
