@@ -208,16 +208,20 @@ GENERATE_NIX_MANIFEST = """
 set -euo pipefail
 store_paths=()
 
+# loop through store paths in arguments
 for store_path in "$@"
 do
+    # query nix store to grab runtime dependencies of each store path
     paths=( $({nix_store_bin_path} -q -R --include-outputs $store_path) )
     # concatenate new store paths
     store_paths=( "${{store_paths[@]+"${{store_paths[@]}}"}}" "${{paths[@]}}" )
 done
 
+# sort (and deduplicate) store paths
 IFS=$'\n' sorted_store_paths=($(sort -u <<<"${{store_paths[*]}}"))
 unset IFS
 
+# print merged list to manifest file
 printf "%s\n" "${{sorted_store_paths[@]}}" >> {manifest_path}
 """
 
