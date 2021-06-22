@@ -17,8 +17,24 @@ NixLibraryInfo = provider(
 )
 
 NixPkgsInfo = provider(
-    doc = "Description of provider NixPkgs",
+    doc = "Nix repository's default.nix file",
     fields = {
         "nix_import": "File, default.nix of nixpkgs",
+    },
+)
+
+NixDerivationInfo = provider(
+    doc = "Metadata about the store path (e.g. /nix/store/abcdef) of a dep",
+    fields = {
+        "out_symlink": "File of bazel support symlink, or None",
+        "store_path": "Derivation's store path",
+    },
+)
+
+NixDepsInfo = provider(
+    doc = "NixDeps is collected by an aspect",
+    fields = {
+        "out_symlinks": "Depset of bazel support dir Files needed to reference store_paths",
+        "store_paths": "Depset of store paths needed at runtime",
     },
 )

@@ -203,3 +203,47 @@ def nix_build(
         #     "no-sandbox": "1",
         # },
     )
+
+GENERATE_NIX_MANIFEST = """
+set -euo pipefail
+store_paths=()
+
+for store_path in "$@"
+do
+    paths=( $({nix_store_bin_path} -q -R --include-outputs $store_path) )
+    # concatenate new store paths
+    store_paths=( "${{store_paths[@]+"${{store_paths[@]}}"}}" "${{paths[@]}}" )
+done
+
+IFS=$'\n' sorted_store_paths=($(sort -u <<<"${{store_paths[*]}}"))
+unset IFS
+
+printf "%s\n" "${{sorted_store_paths[@]}}" >> {manifest_path}
+"""
+
+def nix_layer(ctx, deps, store_paths, output_manifest):
+    toolchain = ctx.toolchains["@io_tweag_rules_nixpkgs//:toolchain_type"]
+
+    # Create a sorted (and deduplicated) list of nix store paths needed by deps.
+    ctx.actions.run_shell(
+        inputs = deps,
+        outputs = [output_manifest],
+        command = GENERATE_NIX_MANIFEST.format(
+            nix_store_bin_path = toolchain.nixinfo.nix_store_bin_path,
+            manifest_path = output_manifest.path,
+        ),
+        arguments = store_paths,
+    )
+
+    ctx.actions.run_shell(
+        inputs = [output_manifest],
+        outputs = [ctx.outputs.tar],
+        # TODO(danny): this is probably not hermetic, but it seems to work okay right now
+        # It would be better to replace this with an invocation of rules_docker's tar building
+        # code in python. If we rely at all on python, I'd love to replace the sketchy bash
+        # script above too.
+        command = "cat {manifest_path} | xargs tar c > {tar_output_path}".format(
+            manifest_path = output_manifest.path,
+            tar_output_path = ctx.outputs.tar.path,
+        ),
+    )

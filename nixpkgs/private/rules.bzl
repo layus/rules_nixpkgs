@@ -1,4 +1,12 @@
-load(":private/providers.bzl", "NixBuildInfo", "NixLibraryInfo", "NixPkgsInfo")
+load(
+    ":private/providers.bzl",
+    "NixBuildInfo",
+    "NixDepsInfo",
+    "NixDerivationInfo",
+    "NixLibraryInfo",
+    "NixPkgsInfo",
+)
+load(":private/aspects.bzl", "nix_deps_aspect")
 load("@rules_cc//cc:find_cc_toolchain.bzl", "find_cc_toolchain")
 
 def _declare_lib(ctx, lib_name):
@@ -64,6 +72,10 @@ def _nix_cc_impl(ctx):
                 direct = [dep[NixLibraryInfo].info for dep in ctx.attr.deps],
                 transitive = [dep[NixLibraryInfo].deps for dep in ctx.attr.deps],
             ),
+        ),
+        NixDerivationInfo(
+            out_symlink = out_symlink,
+            store_path = out_symlink.path + "/result",  # TODO: don't hardcode expected result path!
         ),
         _make_cc_info(ctx, out_include_dir, out_shared_libs, out_static_libs),
     ]
@@ -196,4 +208,52 @@ nix_package_repository = rule(
     },
     executable = False,
     test = False,
+)
+
+def _nix_bundleable_impl(ctx):
+    return [NixDerivationInfo(
+        out_symlink = None,  # only used for nix_cc
+        store_path = ctx.attr.store_path,
+    )]
+
+nix_bundleable = rule(
+    implementation = _nix_bundleable_impl,
+    attrs = {
+        "store_path": attr.string(doc = "nix store path of derivation", mandatory = True),
+    },
+    executable = False,
+    test = False,
+)
+
+def _nix_deps_layer_impl(ctx):
+    toolchain = ctx.toolchains["@io_tweag_rules_nixpkgs//:toolchain_type"]
+
+    output = ctx.actions.declare_file("{}.nix-manifest".format(ctx.label.name))
+
+    store_paths = []
+    out_symlinks = []
+    for dep in ctx.attr.deps:
+        store_paths += dep[NixDepsInfo].store_paths.to_list()
+        out_symlinks.append(dep[NixDepsInfo].out_symlinks)
+
+    toolchain.layer(ctx, depset([], transitive = out_symlinks), store_paths, output)
+
+    return [
+        DefaultInfo(
+            files = depset(direct = [output]),
+            runfiles = ctx.runfiles(files = []),
+        ),
+    ]
+
+nix_deps_layer = rule(
+    implementation = _nix_deps_layer_impl,
+    attrs = {
+        "deps": attr.label_list(aspects = [nix_deps_aspect]),
+    },
+    toolchains = [
+        "@io_tweag_rules_nixpkgs//:toolchain_type",
+    ],
+    outputs = {
+        "tar": "%{name}.tar",
+    },
 )
