@@ -1,10 +1,13 @@
 load(":private/providers.bzl", "NixBuildInfo", "NixLibraryInfo", "NixPkgsInfo")
 load("@rules_cc//cc:find_cc_toolchain.bzl", "find_cc_toolchain")
 
+def _declare_lib(ctx, lib_name):
+    return ctx.actions.declare_file("{}-lib/{}".format(ctx.label.name, lib_name))
+
 def _nix_cc_impl(ctx):
     toolchain = ctx.toolchains["@io_tweag_rules_nixpkgs//:toolchain_type"]
 
-    wrapper_file = ctx.actions.declare_file("wrapper.nix")
+    wrapper_file = ctx.actions.declare_file("{}-wrapper.nix".format(ctx.label.name))
     toolchain.wrap(
         ctx,
         derivation = ctx.file.derivation,  # .nix file
@@ -15,21 +18,18 @@ def _nix_cc_impl(ctx):
 
     # need symlink for nix to not garbage collect results
     # we also symlink to this symlink if we have include or lib outputs
-    out_symlink = ctx.actions.declare_directory("bazel-support")
+    out_symlink = ctx.actions.declare_directory("{}-bazel-support".format(ctx.label.name))
 
     out_include_dir = None
     if ctx.attr.out_include_dir:
-        out_include_dir = ctx.actions.declare_directory("include")
+        out_include_dir = ctx.actions.declare_directory("{}-include".format(ctx.label.name))
 
-    out_lib_dir = None
     out_shared_libs = {}
-    if ctx.attr.installs_libs:
-        # TODO: create a debug mode that lists the contents of the lib directory
-        # out_lib_dir = ctx.actions.declare_directory("lib")
-
-        for out_shared_lib in ctx.attr.out_shared_libs:
-            lib_name = "lib/" + out_shared_lib
-            out_shared_libs[lib_name] = ctx.actions.declare_file(lib_name)
+    out_static_libs = {}
+    for lib_name in ctx.attr.out_shared_libs:
+        out_shared_libs[lib_name] = _declare_lib(ctx, lib_name)
+    for lib_name in ctx.attr.out_static_libs:
+        out_static_libs[lib_name] = _declare_lib(ctx, lib_name)
 
     toolchain.build(
         ctx,
@@ -41,16 +41,16 @@ def _nix_cc_impl(ctx):
         out_symlink = out_symlink,
         out_include_dir = out_include_dir,
         out_include_dir_name = ctx.attr.out_include_dir,
-        out_lib_dir = out_lib_dir,
+        out_lib_dir_name = ctx.attr.out_lib_dir,
         out_shared_libs = out_shared_libs,  # dict
+        out_static_libs = out_static_libs,  # dict
     )
 
-    maybe_nix_lib = [out_lib_dir] if out_lib_dir else []
     maybe_nix_include = [out_include_dir] if out_include_dir else []
 
     return [
         DefaultInfo(
-            files = depset(direct = maybe_nix_include + maybe_nix_lib),
+            files = depset(direct = maybe_nix_include),
             runfiles = ctx.runfiles(files = []),
         ),
         NixLibraryInfo(
@@ -65,10 +65,10 @@ def _nix_cc_impl(ctx):
                 transitive = [dep[NixLibraryInfo].deps for dep in ctx.attr.deps],
             ),
         ),
-        _make_cc_info(ctx, out_include_dir, out_shared_libs),
+        _make_cc_info(ctx, out_include_dir, out_shared_libs, out_static_libs),
     ]
 
-def _make_cc_info(ctx, out_include_dir, out_shared_libs):
+def _make_cc_info(ctx, out_include_dir, out_shared_libs, out_static_libs):
     cc_toolchain = find_cc_toolchain(ctx)
 
     feature_configuration = cc_common.configure_features(
@@ -92,19 +92,29 @@ def _make_cc_info(ctx, out_include_dir, out_shared_libs):
             actions = ctx.actions,
             feature_configuration = feature_configuration,
             dynamic_library = out_shared_lib,
-            # this prevents most of the name mangling, but it may not be worth it
-            # dynamic_library_symlink_path = out_shared_lib.basename,
-            # static_library = ctx.file.static_library,
             cc_toolchain = cc_toolchain,
         )
 
         libraries_to_link.append(library_to_link)
+
+    for out_static_lib in out_static_libs.values():
+        library_to_link = cc_common.create_library_to_link(
+            actions = ctx.actions,
+            feature_configuration = feature_configuration,
+            static_library = out_static_lib,
+            cc_toolchain = cc_toolchain,
+        )
+
+        libraries_to_link.append(library_to_link)
+
+    user_link_flags = ctx.attr.linkopts
 
     if libraries_to_link:
         linking_context = cc_common.create_linking_context(
             linker_inputs = depset([cc_common.create_linker_input(
                 owner = ctx.label,
                 libraries = depset(libraries_to_link),
+                user_link_flags = depset(user_link_flags),
             )]),
         )
     return CcInfo(
@@ -130,14 +140,26 @@ nix_cc = rule(
             providers = [NixPkgsInfo],
             default = "@nixpkgs",
         ),
+        "build_attribute": attr.string(
+            doc = "Nix attribute to build (passes -A <build_attribute> to command line)",
+        ),
+        "linkopts": attr.string_list(
+        ),
         "out_include_dir": attr.string(
-            doc = "Name of the output subdirectory for header files",
-            default = "include",
+            doc = "Name of the output subdirectory for header files (usually under result/include)",
+            default = "result/include",
             mandatory = False,
         ),
-        "installs_libs": attr.bool(default = False),
         "out_shared_libs": attr.string_list(
             doc = "List of shared libraries created by rule",
+        ),
+        "out_static_libs": attr.string_list(
+            doc = "List of static libraries created by rule",
+        ),
+        "out_lib_dir": attr.string(
+            doc = "Name of the output subdirectory for library files",
+            default = "result/lib",
+            mandatory = False,
         ),
         # for find_cpp_toolchain
         "_cc_toolchain": attr.label(default = Label("@bazel_tools//tools/cpp:current_cc_toolchain")),
@@ -147,6 +169,7 @@ nix_cc = rule(
         "path_info": "%{name}.path_info",
         "derivation": "%{name}.derivation",
         "lib_list": "%{name}.lib_list",
+        "tar": "%{name}.tar",
     },
     fragments = ["cpp"],  # for configure_features
     toolchains = [

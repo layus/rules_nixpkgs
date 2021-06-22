@@ -14,9 +14,8 @@ def nix_wrapper(ctx, derivation, deps, nixpkgs, out):
     """
     generates a script that provides exactly the dependencies of this build.
     """
-    wrapper_file = ctx.actions.declare_file("wrapper.nix")
     ctx.actions.write(
-        output = wrapper_file,
+        output = out,
         content = NIX_WRAPPER_TEMPLATE.format(
             nixpkg_deps = "\n    ".join([
                 "{name} = nixpkgs.{name};".format(name = name)
@@ -78,6 +77,24 @@ def _nix_debug_build(ctx, out_symlink):
         ),
     )
 
+def _nix_docker_helper(ctx, out_symlink):
+    toolchain = ctx.toolchains["@io_tweag_rules_nixpkgs//:toolchain_type"]
+
+    # Create a tarball with runtime dependencies of built package.
+    ctx.actions.run_shell(
+        inputs = [out_symlink],
+        outputs = [ctx.outputs.tar],
+        command = " ".join([
+            toolchain.nixinfo.nix_store_bin_path,
+            "-q -R --include-outputs",
+            "{}/result".format(out_symlink.path),
+            "|",
+            "xargs tar c",
+            ">",
+            ctx.outputs.tar.path,
+        ]),
+    )
+
 def nix_build(
         ctx,
         derivation,
@@ -87,18 +104,20 @@ def nix_build(
         out_symlink,
         out_include_dir,
         out_include_dir_name,
-        out_lib_dir,
-        out_shared_libs):
+        out_lib_dir_name,
+        out_shared_libs,
+        out_static_libs):
     """ runs nix-build on a set of sources """
     toolchain = ctx.toolchains["@io_tweag_rules_nixpkgs//:toolchain_type"]
 
     _nix_debug_build(ctx, out_symlink)  # add optional debug outputs
+    _nix_docker_helper(ctx, out_symlink)
 
     if out_include_dir:
         ctx.actions.run_shell(
             inputs = [out_symlink],
             outputs = [out_include_dir],
-            command = "cp -R {}/result/{}/* {}".format(
+            command = "cp -R {}/{}/* {}".format(
                 out_symlink.path,
                 out_include_dir_name,
                 out_include_dir.path,
@@ -110,8 +129,9 @@ def nix_build(
             inputs = [out_symlink],
             outputs = out_shared_libs.values(),
             command = "\n".join([
-                "cp -R {}/result/{} {}".format(
+                "cp -R {}/{}/{} {}".format(
                     out_symlink.path,
+                    out_lib_dir_name,
                     lib_name,
                     out_shared_libs[lib_name].path,
                 )
@@ -119,15 +139,19 @@ def nix_build(
             ]),
         )
 
-    if out_lib_dir:
+    if out_static_libs:
         ctx.actions.run_shell(
             inputs = [out_symlink],
-            outputs = [out_lib_dir] + out_shared_libs,
-            command = "cp -R {}/result/{}/* {}".format(
-                out_symlink.path,
-                "lib",
-                out_lib_dir.path,
-            ),
+            outputs = out_static_libs.values(),
+            command = "\n".join([
+                "cp -R {}/{}/{} {}".format(
+                    out_symlink.path,
+                    out_lib_dir_name,
+                    lib_name,
+                    out_static_libs[lib_name].path,
+                )
+                for lib_name in out_static_libs
+            ]),
         )
 
     input_nix_out_symlinks = []
@@ -140,6 +164,13 @@ def nix_build(
         nix_file_deps.append(info.nix_import)
         nix_file_deps += info.extra_nix_files
         input_nix_out_symlinks.append(info.out_symlink)
+
+    maybe_build_attr = []
+    if ctx.attr.build_attribute:
+        maybe_build_attr = [
+            "-A",
+            ctx.attr.build_attribute,
+        ]
 
     ctx.actions.run(
         outputs = [out_symlink],
@@ -155,8 +186,10 @@ def nix_build(
             ".",
             "-I",
             "nixpkgs={}".format(repo[NixPkgsInfo].nix_import.path),
-        ] + nixpath_entries + [
+        ] + nixpath_entries + maybe_build_attr + [
             derivation.path,
+            "--keep-failed",  # TODO(danny): when should we enable this?
+            "--show-trace",
             "--out-link",
             "{}/result".format(out_symlink.path),
         ],
