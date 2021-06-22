@@ -258,6 +258,13 @@ def _nixpkgs_package_impl(repository_ctx):
             if not p.exists:
                 repository_ctx.template("BUILD", Label("@io_tweag_rules_nixpkgs//nixpkgs:BUILD.pkg"))
 
+        # Create a //_nix:deps target for bundling transitive closure into a docker container
+        repository_ctx.template(
+            "_nix/BUILD.bazel",
+            Label("@io_tweag_rules_nixpkgs//nixpkgs:BUILD.deps"),
+            {"{STORE_PATH}": output_path},
+        )
+
 _nixpkgs_package = repository_rule(
     implementation = _nixpkgs_package_impl,
     attrs = {
