@@ -1,12 +1,12 @@
 load(
-    ":private/providers.bzl",
+    ":providers.bzl",
     "NixBuildInfo",
     "NixDepsInfo",
     "NixDerivationInfo",
     "NixLibraryInfo",
     "NixPkgsInfo",
 )
-load(":private/aspects.bzl", "nix_deps_aspect")
+load(":aspects.bzl", "nix_deps_aspect")
 load("@rules_cc//cc:find_cc_toolchain.bzl", "find_cc_toolchain")
 
 def _declare_lib(ctx, lib_name):
