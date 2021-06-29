@@ -1,4 +1,4 @@
-load(":private/providers.bzl", "NixDepsInfo", "NixDerivationInfo")
+load(":providers.bzl", "NixDepsInfo", "NixDerivationInfo")
 
 def _nix_deps_aspect_impl(target, ctx):
     store_paths = []

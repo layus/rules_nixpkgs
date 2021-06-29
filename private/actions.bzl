@@ -1,4 +1,4 @@
-load(":private/providers.bzl", "NixLibraryInfo", "NixPkgsInfo")
+load(":providers.bzl", "NixLibraryInfo", "NixPkgsInfo")
 
 NIX_WRAPPER_TEMPLATE = """
 let

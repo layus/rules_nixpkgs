@@ -1,4 +1,4 @@
-load("//nixpkgs:private/actions.bzl", "nix_build", "nix_layer", "nix_wrapper")
+load("//private:actions.bzl", "nix_build", "nix_layer", "nix_wrapper")
 
 NixInfo = provider(
     doc = "NixInfo provides information about the nix toolchain",
@@ -40,7 +40,7 @@ def _auto_nix_toolchain(repository_ctx):
     repository_ctx.file(
         "BUILD.bazel",
         content = """
-load("@io_tweag_rules_nixpkgs//nixpkgs:toolchains/nix.bzl", "nix_toolchain")
+load("@io_tweag_rules_nixpkgs//toolchains:nix.bzl", "nix_toolchain")
 load("@io_tweag_rules_nixpkgs//:defs.bzl", "nix_package_repository")
 
 nix_toolchain(
