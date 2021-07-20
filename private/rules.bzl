@@ -48,6 +48,11 @@ def _nix_cc_impl(ctx):
         deps = ctx.attr.deps,
         repo = ctx.attr.repo,
         out_symlink = out_symlink,
+    )
+
+    toolchain.collect_cc(
+        ctx,
+        out_symlink = out_symlink,
         out_include_dir = out_include_dir,
         out_include_dir_name = ctx.attr.out_include_dir,
         out_lib_dir_name = ctx.attr.out_lib_dir,
