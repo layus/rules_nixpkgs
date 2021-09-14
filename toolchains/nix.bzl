@@ -1,4 +1,4 @@
-load("//private:actions.bzl", "nix_build", "nix_layer", "nix_wrapper")
+load("//private:actions.bzl", "nix_build", "nix_collect_cc", "nix_layer", "nix_wrapper")
 
 NixInfo = provider(
     doc = "NixInfo provides information about the nix toolchain",
@@ -14,6 +14,9 @@ def _nix_toolchain_impl(ctx):
         # Public interface of toolchain
         build = nix_build,
         wrap = nix_wrapper,
+
+        # File collection
+        collect_cc = nix_collect_cc,
 
         # Docker helper actions
         layer = nix_layer,

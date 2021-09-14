@@ -32,62 +32,62 @@ def nix_wrapper(ctx, derivation, deps, nixpkgs, out):
         ),
     )
 
-def _nix_debug_build(ctx, out_symlink):
+def _nix_debug_build(ctx, out_tree):
     toolchain = ctx.toolchains["@io_tweag_rules_nixpkgs//:toolchain_type"]
 
     # <name>.path_info generates a file with the referenced nix store paths
     ctx.actions.run_shell(
-        inputs = [out_symlink],
+        inputs = [out_tree],
         outputs = [ctx.outputs.path_info],
         command = "{} path-info -r {}/result > {}".format(
             toolchain.nixinfo.nix_bin_path,
-            out_symlink.path,
+            out_tree.path,
             ctx.outputs.path_info.path,
         ),
     )
 
     # <name>.log generates a file with the nix build log for this target
     ctx.actions.run_shell(
-        inputs = [out_symlink],
+        inputs = [out_tree],
         outputs = [ctx.outputs.log],
         command = "{} log {}/result > {}".format(
             toolchain.nixinfo.nix_bin_path,
-            out_symlink.path,
+            out_tree.path,
             ctx.outputs.log.path,
         ),
     )
 
     # <name>.derivation shows the derivation for this target
     ctx.actions.run_shell(
-        inputs = [out_symlink],
+        inputs = [out_tree],
         outputs = [ctx.outputs.derivation],
         command = "{} show-derivation {}/result > {}".format(
             toolchain.nixinfo.nix_bin_path,
-            out_symlink.path,
+            out_tree.path,
             ctx.outputs.derivation.path,
         ),
     )
 
     ctx.actions.run_shell(
-        inputs = [out_symlink],
+        inputs = [out_tree],
         outputs = [ctx.outputs.lib_list],
         command = "find {}/result/lib > {}".format(
-            out_symlink.path,
+            out_tree.path,
             ctx.outputs.lib_list.path,
         ),
     )
 
-def _nix_docker_helper(ctx, out_symlink):
+def _nix_docker_helper(ctx, out_tree):
     toolchain = ctx.toolchains["@io_tweag_rules_nixpkgs//:toolchain_type"]
 
     # Create a tarball with runtime dependencies of built package.
     ctx.actions.run_shell(
-        inputs = [out_symlink],
+        inputs = [out_tree],
         outputs = [ctx.outputs.tar],
         command = " ".join([
             toolchain.nixinfo.nix_store_bin_path,
             "-q -R --include-outputs",
-            "{}/result".format(out_symlink.path),
+            "{}/result".format(out_tree.path),
             "|",
             "xargs tar c",
             ">",
@@ -101,60 +101,14 @@ def nix_build(
         srcs,
         deps,
         repo,  # nix repo
-        out_symlink,
-        out_include_dir,
-        out_include_dir_name,
-        out_lib_dir_name,
-        out_shared_libs,
-        out_static_libs):
+        out_tree):
     """ runs nix-build on a set of sources """
     toolchain = ctx.toolchains["@io_tweag_rules_nixpkgs//:toolchain_type"]
 
-    _nix_debug_build(ctx, out_symlink)  # add optional debug outputs
-    _nix_docker_helper(ctx, out_symlink)
+    _nix_debug_build(ctx, out_tree)  # add optional debug outputs
+    _nix_docker_helper(ctx, out_tree)
 
-    if out_include_dir:
-        ctx.actions.run_shell(
-            inputs = [out_symlink],
-            outputs = [out_include_dir],
-            command = "cp -R {}/{}/* {}".format(
-                out_symlink.path,
-                out_include_dir_name,
-                out_include_dir.path,
-            ),
-        )
-
-    if out_shared_libs:
-        ctx.actions.run_shell(
-            inputs = [out_symlink],
-            outputs = out_shared_libs.values(),
-            command = "\n".join([
-                "cp -R {}/{}/{} {}".format(
-                    out_symlink.path,
-                    out_lib_dir_name,
-                    lib_name,
-                    out_shared_libs[lib_name].path,
-                )
-                for lib_name in out_shared_libs
-            ]),
-        )
-
-    if out_static_libs:
-        ctx.actions.run_shell(
-            inputs = [out_symlink],
-            outputs = out_static_libs.values(),
-            command = "\n".join([
-                "cp -R {}/{}/{} {}".format(
-                    out_symlink.path,
-                    out_lib_dir_name,
-                    lib_name,
-                    out_static_libs[lib_name].path,
-                )
-                for lib_name in out_static_libs
-            ]),
-        )
-
-    input_nix_out_symlinks = []
+    input_nix_out_trees = []
     nix_file_deps = []
     nixpath_entries = []
     for dep in deps:
@@ -163,7 +117,7 @@ def nix_build(
         nixpath_entries += ["-I", "{}={}".format(info.name, info.nix_import.path)]
         nix_file_deps.append(info.nix_import)
         nix_file_deps += info.extra_nix_files
-        input_nix_out_symlinks.append(info.out_symlink)
+        input_nix_out_trees.append(info.out_tree)
 
     maybe_build_attr = []
     if ctx.attr.build_attribute:
@@ -173,8 +127,8 @@ def nix_build(
         ]
 
     ctx.actions.run(
-        outputs = [out_symlink],
-        inputs = srcs + input_nix_out_symlinks + nix_file_deps + [repo[NixPkgsInfo].nix_import],
+        outputs = [out_tree],
+        inputs = srcs + input_nix_out_trees + nix_file_deps + [repo[NixPkgsInfo].nix_import],
         executable = toolchain.nixinfo.nix_build_bin_path,
         env = {
             # nix tries to update a database entry for it's cache state
@@ -191,7 +145,7 @@ def nix_build(
             "--keep-failed",  # TODO(danny): when should we enable this?
             "--show-trace",
             "--out-link",
-            "{}/result".format(out_symlink.path),
+            "{}/result".format(out_tree.path),
         ],
         mnemonic = "NixBuild",
         execution_requirements = {
@@ -206,6 +160,56 @@ def nix_build(
         #     "no-sandbox": "1",
         # },
     )
+
+def nix_collect_cc(
+        ctx,
+        out_tree,  # input
+        out_include_dir,
+        out_include_dir_name,
+        out_lib_dir_name,
+        out_shared_libs,
+        out_static_libs):
+    """nix_collect_cc takes the output symlink and collects cc artifacts"""
+    if out_include_dir:
+        ctx.actions.run_shell(
+            inputs = [out_tree],
+            outputs = [out_include_dir],
+            command = "cp -R {}/{}/* {}".format(
+                out_tree.path,
+                out_include_dir_name,
+                out_include_dir.path,
+            ),
+        )
+
+    if out_shared_libs:
+        ctx.actions.run_shell(
+            inputs = [out_tree],
+            outputs = out_shared_libs.values(),
+            command = "\n".join([
+                "cp -R {}/{}/{} {}".format(
+                    out_tree.path,
+                    out_lib_dir_name,
+                    lib_name,
+                    out_shared_libs[lib_name].path,
+                )
+                for lib_name in out_shared_libs
+            ]),
+        )
+
+    if out_static_libs:
+        ctx.actions.run_shell(
+            inputs = [out_tree],
+            outputs = out_static_libs.values(),
+            command = "\n".join([
+                "cp -R {}/{}/{} {}".format(
+                    out_tree.path,
+                    out_lib_dir_name,
+                    lib_name,
+                    out_static_libs[lib_name].path,
+                )
+                for lib_name in out_static_libs
+            ]),
+        )
 
 GENERATE_NIX_MANIFEST = """
 set -euo pipefail
