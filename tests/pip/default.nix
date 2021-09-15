@@ -38,12 +38,19 @@ toolchain(
 )
     '';
 
+    isPythonPackage = drv: builtins.hasAttr "pname" drv;
+
+    packageDepNames = pipPackage: map
+      (x: x.pname)
+      (builtins.filter (x: isPythonPackage x) pipPackage.propagatedBuildInputs);
+
     concatBazelRules = lib.lists.foldr (pipPackage: buildFile:
         buildFile + ''
 
 pip_package(
     name = "${pipPackage.pname}",
     store_path = "${pipPackage.out}",
+    deps = ${builtins.toJSON (packageDepNames pipPackage)},
     visibility = ["//visibility:public"],
 )
         ''

@@ -54,16 +54,22 @@ def _pip_package_impl(ctx):
         store_symlink.path,
     ))
 
+    import_depsets = []
+    runfiles = ctx.runfiles(files = [store_symlink])
+    for dep in ctx.attr.deps:
+        runfiles = runfiles.merge(dep[DefaultInfo].data_runfiles)
+        import_depsets.append(dep[PyInfo].imports)
+
     # HACK(danny): for some unforunate reason, short_path returns ../ when operating in external
     # repositories. I don't know why. It breaks rules_python's assumptions though.
     fixed_path = store_symlink.short_path[3:]
     return [
         DefaultInfo(
             files = depset([store_symlink]),
-            runfiles = ctx.runfiles(files = [store_symlink]),
+            runfiles = runfiles,
         ),
         PyInfo(
-            imports = depset([fixed_path + "/lib/python3.8/site-packages"]),
+            imports = depset([fixed_path + "/lib/python3.8/site-packages"], transitive = import_depsets),
             transitive_sources = depset(),
         ),
     ]
@@ -73,6 +79,9 @@ pip_package = rule(
     attrs = {
         "store_path": attr.string(
             doc = "nix store path of python package",
+        ),
+        "deps": attr.label_list(
+            providers = [PyInfo],
         ),
     },
     executable = False,
