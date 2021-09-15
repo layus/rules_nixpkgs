@@ -4,5 +4,16 @@ py_binary(
     name = "test_numpy",
     srcs = ["test_numpy.py"],
     python_version = "PY3",
-    deps = ["@npip//:numpy"],
+    deps = [
+        "@npip//:numpy",
+    ],
+)
+
+py_binary(
+    name = "test_requests",
+    srcs = ["test_requests.py"],
+    python_version = "PY3",
+    deps = [
+        "@npip//:requests",
+    ],
 )
