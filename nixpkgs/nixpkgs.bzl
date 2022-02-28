@@ -631,6 +631,7 @@ def nixpkgs_cc_configure(
         name = "local_config_cc",
         attribute_path = "",
         nix_file = None,
+        nix_toolchain_info_file = "@io_tweag_rules_nixpkgs//nixpkgs:toolchains/cc.nix",
         nix_file_content = "",
         nix_file_deps = [],
         repositories = {},
@@ -719,7 +720,7 @@ def nixpkgs_cc_configure(
     # Invoke `toolchains/cc.nix` which generates `CC_TOOLCHAIN_INFO`.
     nixpkgs_package(
         name = "{}_info".format(name),
-        nix_file = "@io_tweag_rules_nixpkgs//nixpkgs:toolchains/cc.nix",
+        nix_file = nix_toolchain_info_file,
         nix_file_deps = nix_file_deps,
         build_file_content = "exports_files(['CC_TOOLCHAIN_INFO'])",
         repositories = repositories,
