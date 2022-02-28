@@ -1193,9 +1193,11 @@ runCommand "bazel-nixpkgs-python-toolchain"
 def nixpkgs_python_configure(
         name = "nixpkgs_python_toolchain",
         python2_attribute_path = None,
+        python2_nix_file = None,
         python2_bin_path = "bin/python",
         python3_attribute_path = "python3",
         python3_bin_path = "bin/python",
+        python3_nix_file = None,
         repository = None,
         repositories = {},
         nix_file_deps = None,
@@ -1229,8 +1231,8 @@ def nixpkgs_python_configure(
       exec_constraints: Constraints for the execution platform.
       target_constraints: Constraints for the target platform.
     """
-    python2_specified = python2_attribute_path and python2_bin_path
-    python3_specified = python3_attribute_path and python3_bin_path
+    python2_specified = (python2_attribute_path and python2_bin_path) or python2_nix_file
+    python3_specified = (python3_attribute_path and python3_bin_path) or python3_nix_file
     if not python2_specified and not python3_specified:
         fail("At least one of python2 or python3 has to be specified.")
     kwargs = dict(
@@ -1253,6 +1255,15 @@ def nixpkgs_python_configure(
             ),
             **kwargs
         )
+
+    if python2_nix_file:
+        python2_runtime = "@%s_python2//:runtime" % name
+        nixpkgs_package(
+            name = name + "_python2",
+            nix_file = python2_nix_file,
+            **kwargs
+        )
+
     python3_runtime = None
     if python3_attribute_path:
         python3_runtime = "@%s_python3//:runtime" % name
@@ -1265,6 +1276,15 @@ def nixpkgs_python_configure(
             ),
             **kwargs
         )
+
+    if python3_nix_file:
+        python3_runtime = "@%s_python3//:runtime" % name
+        nixpkgs_package(
+            name = name + "_python3",
+            nix_file = python3_nix_file,
+            **kwargs
+        )
+
     _nixpkgs_python_toolchain(
         name = name,
         python2_runtime = python2_runtime,
