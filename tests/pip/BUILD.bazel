@@ -1,0 +1,19 @@
+load("@rules_python//python:defs.bzl", "py_binary")
+
+py_binary(
+    name = "test_numpy",
+    srcs = ["test_numpy.py"],
+    python_version = "PY3",
+    deps = [
+        "@npip//:numpy",
+    ],
+)
+
+py_binary(
+    name = "test_requests",
+    srcs = ["test_requests.py"],
+    python_version = "PY3",
+    deps = [
+        "@npip//:requests",
+    ],
+)
