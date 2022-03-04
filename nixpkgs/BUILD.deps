@@ -1,0 +1,8 @@
+# Generated
+load("@io_tweag_rules_nixpkgs//:defs.bzl", "nix_bundleable")
+
+nix_bundleable(
+    name = "deps",
+    store_path = "{STORE_PATH}",
+    visibility = ["//visibility:public"],
+)

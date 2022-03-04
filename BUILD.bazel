@@ -7,3 +7,9 @@ exports_files(
     ["README.md"],
     visibility = ["//docs:__subpackages__"],
 )
+
+# nix toolchain
+toolchain_type(
+    name = "toolchain_type",
+    visibility = ["//visibility:public"],
+)

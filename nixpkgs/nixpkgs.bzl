@@ -16,7 +16,17 @@ load(":private/constraints.bzl", "ensure_constraints")
 def _nixpkgs_git_repository_impl(repository_ctx):
     repository_ctx.file(
         "BUILD",
-        content = 'filegroup(name = "srcs", srcs = glob(["**"]), visibility = ["//visibility:public"])',
+        content = """
+load("@io_tweag_rules_nixpkgs//:defs.bzl", "nix_package_repository")
+
+filegroup(name = "srcs", srcs = glob(["**"]), visibility = ["//visibility:public"])
+
+nix_package_repository(
+    name = "nixpkgs",
+    derivation = "default.nix",
+    visibility = ["//visibility:public"],
+)
+""",
     )
 
     # Make "@nixpkgs" (syntactic sugar for "@nixpkgs//:nixpkgs") a valid
@@ -248,6 +258,13 @@ def _nixpkgs_package_impl(repository_ctx):
             p = repository_ctx.path("BUILD")
             if not p.exists:
                 repository_ctx.template("BUILD", Label("@io_tweag_rules_nixpkgs//nixpkgs:BUILD.pkg"))
+
+        # Create a //_nix:deps target for bundling transitive closure into a docker container
+        repository_ctx.template(
+            "_nix/BUILD.bazel",
+            Label("@io_tweag_rules_nixpkgs//nixpkgs:BUILD.deps"),
+            {"{STORE_PATH}": output_path},
+        )
 
 _nixpkgs_package = repository_rule(
     implementation = _nixpkgs_package_impl,
